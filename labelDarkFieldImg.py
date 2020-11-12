@@ -1837,7 +1837,7 @@ def get_main_app(argv=[]):
                            nargs="?")
     argparser.add_argument("save_dir", nargs="?")
     args = argparser.parse_args(argv[1:])
-    # Usage : labelImg.py image predefClassFile saveDir
+    # Usage : labelDarkFieldImg.py image predefClassFile saveDir
     win = MainWindow(args.image_dir,
                      args.predefined_classes_file,
                      args.save_dir)
