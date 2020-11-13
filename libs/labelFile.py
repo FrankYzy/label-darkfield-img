@@ -44,6 +44,7 @@ class LabelFile(object):
         imgFileName = os.path.basename(imagePath)
         outputFilePath = "/".join(filename.split("/")[:-1])
         outputFile = outputFilePath + "/" + imgFolderName + JSON_EXT
+        outputFile = filename   # 在windows下，出现了C:\user\Frank\Pictures//test.json 这种的\和//混排，导致错误，而发现filename本身就已经是完整的文件名了，不用再额外处理。
 
         image = QImage()
         image.load(imagePath)
