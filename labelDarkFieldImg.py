@@ -151,6 +151,7 @@ class MainWindow(QMainWindow, WindowMixin):  # 程序的主逻辑均在该类中
         self.dip_layout.addRow(self.brightness_label, self.adjust_brightness_scrollBar)
         self.dip_layout.addRow(self.threshold_label, self.threshold_SpinBox)
         self.dip_layout.addRow(self.area_thresh_label, self.area_thresh_SpinBox)
+
         dip_layoutContainer = QWidget()
         dip_layoutContainer.setLayout(self.dip_layout)
 
@@ -158,9 +159,13 @@ class MainWindow(QMainWindow, WindowMixin):  # 程序的主逻辑均在该类中
         self.dip_dock.setObjectName('dip')
         self.dip_dock.setWidget(dip_layoutContainer)
 
+        # Box Labels控件组
         listLayout = QVBoxLayout()  # 主界面最右侧的那一列（没错！）
         listLayout.setContentsMargins(0, 0, 0, 0)
-
+        # 创建一个清除已有标签的按钮
+        self.cleanLabels = QPushButton('清除标注', self)
+        self.cleanLabels.clicked.connect(self.cleanAllBBox)
+        listLayout.addWidget(self.cleanLabels)
         # Create a widget for using default label
         self.useDefaultLabelCheckbox = QCheckBox(getStr('useDefaultLabel'))
         self.useDefaultLabelCheckbox.setChecked(False)
@@ -220,6 +225,7 @@ class MainWindow(QMainWindow, WindowMixin):  # 程序的主逻辑均在该类中
         self.canvas = Canvas(parent=self)  # 自定义的画布类，程序界面的主体，用于显示图像
         self.canvas.zoomRequest.connect(self.zoomRequest)  # 鼠标滚轮缩放事件与self.zoomRequest函数绑定
         self.canvas.setDrawingShapeToSquare(settings.get(SETTING_DRAW_SQUARE, False))
+        self.opencvImgData = None           # 当前画布正在显示的图像
 
         scroll = QScrollArea()
         scroll.setWidget(self.canvas)
@@ -565,14 +571,17 @@ class MainWindow(QMainWindow, WindowMixin):  # 程序的主逻辑均在该类中
             transforms.ToTensor(),
             transforms.Normalize(mean=(0.0257, 0.0257, 0.0257), std=(0.0869, 0.0869, 0.0869))
         ])
+    def cleanAllBBox(self):
+        self.canvas.shapes = []
+        self.canvas.loadPixmap(QPixmap.fromImage(self.imageData))
+        self.labelList.clear()
 
     def autoBBoxGen(self):
-        # press_point = self.canvas.transformPos(QPoint(50,50))
-        # release_point = self.canvas.transformPos(QPoint(250,250))
-        # press_point = QPoint(50, 50)
-        # release_point = QPoint(250,250)
-        # self.genBBoxFromPoint(press_point,release_point)
-        self.thresholdAutodetect(self.threshold_SpinBox.value(),self.area_thresh_SpinBox.value())
+        if not isinstance(self.opencvImgData, np.ndarray):
+            QMessageBox.critical(self,'Error','尚未选择待标注的图像，请重试！')
+            return
+        else:
+            self.thresholdAutodetect(self.threshold_SpinBox.value(),self.area_thresh_SpinBox.value())
     def genBBoxFromPoint(self,start_point, end_point,roi_img=None):
         """
         :param start_point: 要截取的bbox的左上角在真实图像上的坐标,
@@ -698,23 +707,21 @@ class MainWindow(QMainWindow, WindowMixin):  # 程序的主逻辑均在该类中
                 roi_img = self.opencvImgData[Ymin:Ymax, Xmin:Xmax, :]
                 self.genBBoxFromPoint(start_point,end_point,roi_img)
 
-
-
-
     def adjustContrast(self):
-        cur_val = self.adjust_brightness_scrollBar.value()
-        # image processing
-        hls = cv2.cvtColor(self.opencvImgData, cv2.COLOR_RGB2HLS)
-        h, l, s = cv2.split(hls)
-        l = l.astype(np.double)
-        l *= 255 / cur_val
-        l = np.where(l > 255, 255, l).astype(np.uint8)
-        hls = cv2.merge([h, l, s])
-        img = cv2.cvtColor(hls, cv2.COLOR_HLS2RGB)
-        self.imageData = opencv2QImage(img)
-        shapes = self.canvas.shapes
-        self.canvas.loadPixmap(QPixmap.fromImage(self.imageData))
-        self.canvas.shapes = shapes
+        if isinstance(self.opencvImgData, np.ndarray):
+            cur_val = self.adjust_brightness_scrollBar.value()
+            # image processing
+            hls = cv2.cvtColor(self.opencvImgData, cv2.COLOR_RGB2HLS)
+            h, l, s = cv2.split(hls)
+            l = l.astype(np.double)
+            l *= 255 / cur_val
+            l = np.where(l > 255, 255, l).astype(np.uint8)
+            hls = cv2.merge([h, l, s])
+            img = cv2.cvtColor(hls, cv2.COLOR_HLS2RGB)
+            self.imageData = opencv2QImage(img)
+            shapes = self.canvas.shapes
+            self.canvas.loadPixmap(QPixmap.fromImage(self.imageData))
+            self.canvas.shapes = shapes
 
     def predict3classes(self, img):
         img = np.asarray(img)
