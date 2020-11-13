@@ -135,9 +135,16 @@ class MainWindow(QMainWindow, WindowMixin):  # 程序的主逻辑均在该类中
         self.adjust_brightness_scrollBar.setPageStep(1)
         self.adjust_brightness_scrollBar.valueChanged.connect(self.adjustContrast)
 
+        self.threshold_label = QLabel('前景阈值：', self)
+        self.threshold_SpinBox = QSpinBox(self)
+        self.threshold_SpinBox.setValue(10) # 阈值默认设为10
+        self.threshold_SpinBox.setMinimum(0)
+        self.threshold_SpinBox.setMaximum(255)
+
         self.dip_layout = QFormLayout()
         self.dip_layout.addRow(self.auto_bbox_button)
         self.dip_layout.addRow(self.brightness_label, self.adjust_brightness_scrollBar)
+        self.dip_layout.addRow(self.threshold_label, self.threshold_SpinBox)
         dip_layoutContainer = QWidget()
         dip_layoutContainer.setLayout(self.dip_layout)
 
@@ -559,7 +566,7 @@ class MainWindow(QMainWindow, WindowMixin):  # 程序的主逻辑均在该类中
         # press_point = QPoint(50, 50)
         # release_point = QPoint(250,250)
         # self.genBBoxFromPoint(press_point,release_point)
-        self.thresholdAutodetect()
+        self.thresholdAutodetect(self.threshold_SpinBox.value())
     def genBBoxFromPoint(self,start_point, end_point,roi_img=None):
         """
         :param start_point: 要截取的bbox的左上角在真实图像上的坐标,
