@@ -135,16 +135,22 @@ class MainWindow(QMainWindow, WindowMixin):  # 程序的主逻辑均在该类中
         self.adjust_brightness_scrollBar.setPageStep(1)
         self.adjust_brightness_scrollBar.valueChanged.connect(self.adjustContrast)
 
-        self.threshold_label = QLabel('前景阈值：', self)
+        self.threshold_label = QLabel('前景亮度阈值：', self)
         self.threshold_SpinBox = QSpinBox(self)
-        self.threshold_SpinBox.setValue(10) # 阈值默认设为10
+        self.threshold_SpinBox.setValue(10)         # 阈值默认设为10
         self.threshold_SpinBox.setMinimum(0)
         self.threshold_SpinBox.setMaximum(255)
+        self.area_thresh_label = QLabel('前景大小阈值(默认1000)：',self)
+        self.area_thresh_SpinBox = QSpinBox(self)
+        self.area_thresh_SpinBox.setMinimum(1)
+        self.area_thresh_SpinBox.setMaximum(10000)
+        self.area_thresh_SpinBox.setValue(1000)
 
         self.dip_layout = QFormLayout()
         self.dip_layout.addRow(self.auto_bbox_button)
         self.dip_layout.addRow(self.brightness_label, self.adjust_brightness_scrollBar)
         self.dip_layout.addRow(self.threshold_label, self.threshold_SpinBox)
+        self.dip_layout.addRow(self.area_thresh_label, self.area_thresh_SpinBox)
         dip_layoutContainer = QWidget()
         dip_layoutContainer.setLayout(self.dip_layout)
 
@@ -566,7 +572,7 @@ class MainWindow(QMainWindow, WindowMixin):  # 程序的主逻辑均在该类中
         # press_point = QPoint(50, 50)
         # release_point = QPoint(250,250)
         # self.genBBoxFromPoint(press_point,release_point)
-        self.thresholdAutodetect(self.threshold_SpinBox.value())
+        self.thresholdAutodetect(self.threshold_SpinBox.value(),self.area_thresh_SpinBox.value())
     def genBBoxFromPoint(self,start_point, end_point,roi_img=None):
         """
         :param start_point: 要截取的bbox的左上角在真实图像上的坐标,
@@ -642,7 +648,7 @@ class MainWindow(QMainWindow, WindowMixin):  # 程序的主逻辑均在该类中
         self.actions.create.setEnabled(True)
 
     # ****阈值方法目标检测的核心代码****
-    def thresholdAutodetect(self, threshold=10):
+    def thresholdAutodetect(self, threshold=10, area_thresh=1000):
         img = self.opencvImgData
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         gray = cv2.blur(gray, (3, 3))
@@ -686,7 +692,7 @@ class MainWindow(QMainWindow, WindowMixin):  # 程序的主逻辑均在该类中
             if Ymin < 0: Ymin = 0
             if Xmax > bin.shape[1]: Xmax = bin.shape[1]
             if Ymax > bin.shape[0]: Ymax = bin.shape[0]
-            if cnt[i] > 1000:
+            if cnt[i] > area_thresh:
                 start_point = QPoint(x1,y1)
                 end_point = QPoint(x2,y2)
                 roi_img = self.opencvImgData[Ymin:Ymax, Xmin:Xmax, :]
