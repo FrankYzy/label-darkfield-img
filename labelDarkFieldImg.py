@@ -15,7 +15,7 @@ import networks
 import torchvision.transforms as transforms
 from networks import DLmodel
 from torch.nn import functional as F
-
+import platform
 from functools import partial
 from collections import defaultdict
 
@@ -127,6 +127,8 @@ class MainWindow(QMainWindow, WindowMixin):  # 程序的主逻辑均在该类中
 
         self.auto_bbox_button = QPushButton('自动获取候选框', self)  # 自动获取候选框按钮
         self.auto_bbox_button.clicked.connect(self.autoBBoxGen)
+        self.auto_bbox_button_continuous = QPushButton('自动持续获取', self)
+        self.auto_bbox_button_continuous.clicked.connect(self.autoBBoxGenCont)
         self.brightness_label = QLabel('Brightness:', self)
         self.adjust_brightness_scrollBar = QScrollBar(Qt.Horizontal, self)  # 调整图像对比度的滚动条
         self.adjust_brightness_scrollBar.setMaximum(255)
@@ -148,6 +150,7 @@ class MainWindow(QMainWindow, WindowMixin):  # 程序的主逻辑均在该类中
 
         self.dip_layout = QFormLayout()
         self.dip_layout.addRow(self.auto_bbox_button)
+        self.dip_layout.addRow(self.auto_bbox_button_continuous)
         self.dip_layout.addRow(self.brightness_label, self.adjust_brightness_scrollBar)
         self.dip_layout.addRow(self.threshold_label, self.threshold_SpinBox)
         self.dip_layout.addRow(self.area_thresh_label, self.area_thresh_SpinBox)
@@ -576,6 +579,28 @@ class MainWindow(QMainWindow, WindowMixin):  # 程序的主逻辑均在该类中
         self.canvas.loadPixmap(QPixmap.fromImage(self.imageData))
         self.labelList.clear()
 
+    def autoBBoxGenCont(self):
+        if not isinstance(self.opencvImgData, np.ndarray):
+            QMessageBox.critical(self,'Error','尚未选择待标注的图像，请重试！')
+            return
+        else:
+            currIndex = self.mImgList.index(self.filePath)
+            while(currIndex+1<len(self.mImgList)):
+                self.openNextImg()
+                currIndex = self.mImgList.index(self.filePath)
+                if self.hasBoundingBoxFromAnnotationFile(self.filePath):
+                    print('第{}张图像已有候选框，跳过~'.format(currIndex+1))
+                    continue
+                else:
+                    print('正在处理第{}/{}张图像...'.format(currIndex,len(self.mImgList)))
+                    self.thresholdAutodetect(self.threshold_SpinBox.value(), self.area_thresh_SpinBox.value())
+                    if self.defaultSaveDir is not None:
+                        if self.dirty is True:
+                            self.saveFile()
+                    else:
+                        self.changeSavedirDialog()
+
+
     def autoBBoxGen(self):
         if not isinstance(self.opencvImgData, np.ndarray):
             QMessageBox.critical(self,'Error','尚未选择待标注的图像，请重试！')
@@ -627,7 +652,7 @@ class MainWindow(QMainWindow, WindowMixin):  # 程序的主逻辑均在该类中
             self.canvas.setHiding(False)
 
             # 根据ROI框生成标签
-
+            print('正在预测候选框标签')
             text = self.predict3classes(roi_img)
             if text is not None:
                 self.prevLabelText = text
@@ -658,6 +683,7 @@ class MainWindow(QMainWindow, WindowMixin):  # 程序的主逻辑均在该类中
 
     # ****阈值方法目标检测的核心代码****
     def thresholdAutodetect(self, threshold=10, area_thresh=1000):
+        print('正在进行阈值分割获取候选框')
         img = self.opencvImgData
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         gray = cv2.blur(gray, (3, 3))
@@ -705,6 +731,7 @@ class MainWindow(QMainWindow, WindowMixin):  # 程序的主逻辑均在该类中
                 start_point = QPoint(x1,y1)
                 end_point = QPoint(x2,y2)
                 roi_img = self.opencvImgData[Ymin:Ymax, Xmin:Xmax, :]
+                print('正在生成候选框')
                 self.genBBoxFromPoint(start_point,end_point,roi_img)
 
     def adjustContrast(self):
@@ -1352,13 +1379,32 @@ class MainWindow(QMainWindow, WindowMixin):  # 程序的主逻辑均在该类中
             self.canvas.setFocus(True)
             return True
         return False
+    def hasBoundingBoxFromAnnotationFile(self, filePath):
+        if self.defaultSaveDir is not None:
+            basename = os.path.basename(
+                os.path.splitext(filePath)[0])
+            path_split_mark = "\\" if platform.system() == 'Windows' else '/'
+            filedir = filePath.split(basename)[0].split(path_split_mark)[-2:-1][0]
+
+            xmlPath = os.path.join(self.defaultSaveDir, basename + XML_EXT)
+            txtPath = os.path.join(self.defaultSaveDir, basename + TXT_EXT)
+            jsonPath = os.path.join(self.defaultSaveDir, filedir + JSON_EXT)
+
+            if os.path.isfile(xmlPath):
+                return True
+            elif os.path.isfile(txtPath):
+                return True
+            elif os.path.isfile(jsonPath):
+                return True
+            else:
+                return False
 
     def showBoundingBoxFromAnnotationFile(self, filePath):
         if self.defaultSaveDir is not None:
             basename = os.path.basename(
                 os.path.splitext(filePath)[0])
-
-            filedir = filePath.split(basename)[0].split("/")[-2:-1][0]
+            path_split_mark = "\\" if platform.system() == 'Windows' else '/'
+            filedir = filePath.split(basename)[0].split(path_split_mark)[-2:-1][0]
 
             xmlPath = os.path.join(self.defaultSaveDir, basename + XML_EXT)
             txtPath = os.path.join(self.defaultSaveDir, basename + TXT_EXT)
@@ -1526,8 +1572,8 @@ class MainWindow(QMainWindow, WindowMixin):  # 程序的主逻辑均在该类中
         self.lastOpenDir = dirpath
         self.dirname = dirpath
         self.filePath = None
-        self.fileListWidget.clear()
-        self.mImgList = self.scanAllImages(dirpath)
+        self.fileListWidget.clear() # 清空fileList
+        self.mImgList = self.scanAllImages(dirpath)     # 获得open的dir下的所有具有设定后缀名的图像文件，包括子文件夹中的
         self.openNextImg()
         for imgPath in self.mImgList:
             item = QListWidgetItem(imgPath)
@@ -1610,7 +1656,7 @@ class MainWindow(QMainWindow, WindowMixin):  # 程序的主逻辑均在该类中
         formats = ['*.%s' % fmt.data().decode("ascii").lower() for fmt in QImageReader.supportedImageFormats()]
         filters = "Image & Label files (%s)" % ' '.join(formats + ['*%s' % LabelFile.suffix])
         filename = QFileDialog.getOpenFileName(self, '%s - Choose Image or Label file' % __appname__, path, filters)
-        if filename:
+        if filename != ('',''):
             if isinstance(filename, (tuple, list)):
                 filename = filename[0]
             self.loadFile(filename)
