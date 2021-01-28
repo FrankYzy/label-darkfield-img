@@ -103,7 +103,7 @@ class MainWindow(QMainWindow, WindowMixin):  # 程序的主逻辑均在该类中
                                             LabelFileFormat.PASCAL_VOC)  # 获取settins中的标注文件格式，默认是PASCAL_VOC
 
         # For loading all image under a directory
-        self.mImgList = []  # TODO: 待搞清楚这些是什么
+        self.mImgList = []  # 点Open Dir后，会把选中的文件夹中的文件的路径存入该list
         self.dirname = None
         self.labelHist = []  # 预定义的类别名称，后面会从文件中读取
         self.lastOpenDir = None
@@ -1306,7 +1306,7 @@ class MainWindow(QMainWindow, WindowMixin):  # 程序的主逻辑均在该类中
             filePath = self.settings.get(SETTING_FILENAME)
 
         # Make sure that filePath is a regular python string, rather than QString
-        filePath = ustr(filePath)
+        filePath = ustr(os.path.abspath(filePath))
 
         # Fix bug: An  index error after select a directory when open a new file.
         unicodeFilePath = ustr(filePath)
@@ -1507,7 +1507,7 @@ class MainWindow(QMainWindow, WindowMixin):  # 程序的主逻辑均在该类中
             for file in files:
                 if file.lower().endswith(tuple(extensions)):
                     relativePath = os.path.join(root, file)
-                    path = ustr(os.path.abspath(relativePath))
+                    path = ustr(os.path.abspath(relativePath))  # 利用os.path.abspath()可以将混杂了/和\\符号的路径根据程序运行的平台同一转换成一种表示
                     images.append(path)
         natural_sort(images, key=lambda x: x.lower())
         return images
